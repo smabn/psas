@@ -4,12 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Akses Ditutup</title>
+
 <style>
-body { display:flex; justify-content:center; align-items:center; height:100vh; margin:0; font-family:sans-serif; background:#f2f2f2; }
-h1 { color:#d9534f; text-align:center; }
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: linear-gradient(135deg, #f8d7da, #fcebec);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .card {
+    background: #ffffff;
+    padding: 28px 32px;
+    border-radius: 14px;
+    width: 90%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+    border-top: 6px solid #d9534f;
+  }
+
+  .icon {
+    font-size: 55px;
+    color: #d9534f;
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    margin: 0;
+    color: #b52b2b;
+    font-size: 26px;
+    margin-bottom: 12px;
+  }
+
+  p {
+    margin: 0;
+    color: #555;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  .btn {
+    margin-top: 18px;
+    display: inline-block;
+    padding: 12px 18px;
+    background: #d9534f;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 15px;
+  }
+
+  .btn:hover {
+    opacity: 0.9;
+  }
 </style>
+
 </head>
 <body>
-<h1>Akses ujian ditutup.<br>Anda sudah melanggar 3 kali.</h1>
+
+<div class="card">
+  <div class="icon">⛔</div>
+  <h1>Akses Ujian Ditutup</h1>
+  <p>Anda telah melakukan 3 pelanggaran.</p>
+  <p>Akses ujian pada perangkat ini otomatis diblokir.</p>
+  <a href="javascript:location.reload()" class="btn">Coba Lagi</a>
+</div>
+
 </body>
 </html>
