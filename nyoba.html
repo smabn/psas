@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Ujian Online - Sejarah12 (Secure Mode)</title>
+  <style>
+    html,body{height:100%;margin:0;padding:0;font-family:Arial, Helvetica, sans-serif;background:#000;color:#fff}
+    #examIframe{width:100%;height:100%;border:0;display:block;background:#fff}
+    /* overlay */
+    .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);z-index:9999}
+    .card{background:#fff;color:#111;padding:22px;border-radius:12px;max-width:720px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,0.6);text-align:left}
+    .card h2{margin-top:0}
+    .btn{display:inline-block;padding:12px 18px;border-radius:10px;background:#007bff;color:#fff;font-weight:700;border:0;cursor:pointer}
+    .btn-secondary{background:#6c757d}
+    /* warn modal */
+    #warnModal{display:none;position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7)}
+    #warnCard{background:#fff;padding:18px;border-radius:10px;max-width:520px;width:90%;color:#111;text-align:center;border-top:6px solid #ffc107}
+    /* small */
+    .muted{color:#666;font-size:14px}
+  </style>
+</head>
+<body>
+
+  <!-- Header image wrapper (will show above the form iframe) -->
+  <div style="text-align:center;background:#111;padding:10px;">
+    <img src="https://drive.google.com/uc?export=view&id=19yeE2nNUrGuPl57C9MgD_uKd0MJEW2Pw" alt="Header Sejarah12" style="max-width:100%;height:auto;display:block;margin:0 auto;">
+  </div>
+
+  <!-- Iframe tempat Google Form -->
+  <iframe id="examIframe" src="about:blank" title="Form Ujian"></iframe>
+
+  <!-- Start overlay -->
+  <div id="startOverlay" class="overlay" aria-hidden="false">
+    <div class="card" role="dialog" aria-labelledby="rulesTitle">
+      <h2 id="rulesTitle">Peraturan Ujian - Sejarah12</h2>
+      <ul style="padding-left:18px;line-height:1.5;color:#222;font-size:15px">
+        <li>Dilarang keluar dari aplikasi / berpindah tab selama ujian.</li>
+        <li>Dilarang split screen (membagi layar) atau membuka aplikasi lain.</li>
+        <li>Dilarang menekan tombol Back / Home untuk mencoba mengakali.</li>
+        <li>Pelanggaran ke-3 = <strong>AKSES DITUTUP</strong> (akan diarahkan ke halaman penutupan).</li>
+      </ul>
+      <p class="muted">Pastikan koneksi internet stabil. Siapkan waktu dan perangkat sebelum memulai.</p>
+      <div style="margin-top:12px;text-align:right">
+        <button id="startBtn" class="btn">MULAI UJIAN &amp; FULLSCREEN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warning modal -->
+  <div id="warnModal" aria-hidden="true">
+    <div id="warnCard" role="alertdialog" aria-labelledby="warnTitle">
+      <h3 id="warnTitle" style="margin:0 0 8px 0;color:#b71c1c">⚠️ PERINGATAN</h3>
+      <p id="warnText" style="margin:0 0 8px 0">Terdeteksi aktivitas yang mencurigakan.</p>
+      <p style="font-weight:700;margin:0 0 10px 0">Sisa Kesempatan: <span id="chanceCount">3</span></p>
+      <button onclick="closeWarn()" class="btn">SAYA MENGERTI</button>
+    </div>
+  </div>
+
+<script>
+/* ====== KONFIGURASI UJIAN (sudah disesuaikan) ====== */
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSey760E1kBooWBINiFxJkQwDm7KmjxsgNIoLD398nO135e4YQ/viewform?embedded=true';
+const SAFE_KEY = 'SEJARAH12';
+const MAX_VIOLATION = 3;
+const ACCESS_DENIED_PAGE = 'aksesditutup.html'; // pastikan file ini ada di repo GitHub */
+
+/* ====== LOGIKA ANTI-CHEATING ====== */
+// state
+let violationCount = 0;
+let lastWindowWidth = window.innerWidth;
+let lastWindowHeight = window.innerHeight;
+let resizeTimeout = null;
+
+/* helper: read/write localStorage safely */
+function readCount(){
+  try {
+    const v = localStorage.getItem('ANTI_' + SAFE_KEY);
+    return v ? parseInt(v,10) : 0;
+  } catch(e){ return 0; }
+}
+function writeCount(n){
+  try { localStorage.setItem('ANTI_' + SAFE_KEY, String(n)); } catch(e){}
+}
+
+/* initialize from storage */
+violationCount = readCount();
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('chanceCount').textContent = Math.max(0, MAX_VIOLATION - violationCount);
+});
+
+/* show warning modal */
+function showWarn(msg){
+  const modal = document.getElementById('warnModal');
+  document.getElementById('warnText').textContent = msg || 'Terdeteksi aktivitas mencurigakan';
+  document.getElementById('chanceCount').textContent = Math.max(0, MAX_VIOLATION - violationCount);
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden','false');
+}
+function closeWarn(){
+  const modal = document.getElementById('warnModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden','true');
+}
+
+/* increment violation and maybe lock */
+function registerViolation(reason){
+  violationCount = Math.min(999, violationCount + 1);
+  writeCount(violationCount);
+  console.warn('[ANTI] violation #' + violationCount + ' => ' + reason);
+  if (violationCount >= MAX_VIOLATION){
+    // redirect to closed access
+    try { localStorage.setItem('ANTI_' + SAFE_KEY + '_locked', '1'); } catch(e){}
+    window.location.href = ACCESS_DENIED_PAGE;
+  } else {
+    showWarn('Pelanggaran terdeteksi: ' + reason);
+  }
+}
+
+/* Event: page visibility (tab change, minimize) */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    // give a tiny debounce — count only if user leaves for >1s
+    setTimeout(()=> {
+      if (document.hidden) registerViolation('Pergi dari tab / minimized (visibilitychange)');
+    }, 1000);
+  }
+});
+
+/* Event: window blur (loss of focus) */
+window.addEventListener('blur', () => {
+  // count blur if iframe not focused
+  setTimeout(()=> {
+    // if focus moved away for more than 600ms, count it
+    registerViolation('Aplikasi kehilangan fokus (blur)');
+  }, 600);
+});
+
+/* Event: resize (possible split-screen) */
+window.addEventListener('resize', () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    const w = window.innerWidth, h = window.innerHeight;
+    // if dimensions change substantially (more than 20px), consider suspicious
+    if (Math.abs(w - lastWindowWidth) > 20 || Math.abs(h - lastWindowHeight) > 20){
+      // sometimes keyboard on mobile triggers resize — only register if change is large
+      registerViolation('Perubahan ukuran tampilan (resize) — kemungkinan split screen / app switch');
+    }
+    lastWindowWidth = w; lastWindowHeight = h;
+  }, 700);
+});
+
+/* Prevent right-click / context menu */
+window.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  registerViolation('Membuka menu konteks (right-click)');
+  return false;
+});
+
+/* Prevent some keyboard shortcuts (DevTools / view-source) */
+window.addEventListener('keydown', (e) => {
+  // F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S, Ctrl+P
+  if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i') || (e.ctrlKey && e.key.toLowerCase() === 'u') || (e.ctrlKey && e.key.toLowerCase() === 's') || (e.ctrlKey && e.key.toLowerCase() === 'p')) {
+    e.preventDefault();
+    registerViolation('Mencoba membuka fitur developer / save / view-source');
+    return false;
+  }
+});
+
+/* Beforeunload: warn user if they try to navigate away */
+window.addEventListener('beforeunload', function (e) {
+  // put small warning; browsers may ignore custom message
+  if (violationCount < MAX_VIOLATION) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+/* Fullscreen & Start button */
+const startBtn = document.getElementById('startBtn');
+startBtn.addEventListener('click', async () => {
+  // enter fullscreen for better control (best effort)
+  try {
+    if (document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    } else if (document.documentElement.webkitRequestFullscreen) {
+      await document.documentElement.webkitRequestFullscreen();
+    }
+  } catch(e){ /* ignore */ }
+
+  // hide overlay and load form
+  document.getElementById('startOverlay').style.display = 'none';
+  loadFormInIframe();
+});
+
+/* Load Google Form in the iframe */
+function loadFormInIframe(){
+  const iframe = document.getElementById('examIframe');
+  iframe.src = FORM_URL;
+  // focus iframe (best-effort)
+  setTimeout(()=> {
+    try { iframe.contentWindow.focus(); } catch(e){}
+  }, 400);
+}
+
+/* if locked previously, go to aksesditutup immediately */
+try {
+  const locked = localStorage.getItem('ANTI_' + SAFE_KEY + '_locked');
+  if (locked === '1') {
+    window.location.href = ACCESS_DENIED_PAGE;
+  }
+} catch(e){}
+
+/* Accessibility: If user refreshes and iframe already loaded, show overlay hidden state */
+document.addEventListener('DOMContentLoaded', () => {
+  // If iframe already loaded before (we rely on presence of a saved flag), show iframe directly
+  const started = sessionStorage.getItem('ANTI_STARTED_' + SAFE_KEY);
+  if (started) {
+    document.getElementById('startOverlay').style.display = 'none';
+    loadFormInIframe();
+  } else {
+    // ensure start overlay visible
+    document.getElementById('startOverlay').style.display = 'flex';
+  }
+});
+
+/* Mark started in session when start pressed (so refresh keeps iframe visible) */
+startBtn.addEventListener('click', () => {
+  try { sessionStorage.setItem('ANTI_STARTED_' + SAFE_KEY, '1'); } catch(e){}
+});
+
+/* Extra: periodically persist local violation count (defensive) */
+setInterval(()=> {
+  try { localStorage.setItem('ANTI_' + SAFE_KEY, String(violationCount)); } catch(e){}
+}, 5000);
+</script>
+
+</body>
+</html>
