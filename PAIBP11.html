@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Ujian Online - PAIBP11 (Secure Mode)</title>
+<style>
+  body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif; background: #000; }
+  #examIframe { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+
+  /* Overlay Start */
+  .overlay { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.85); z-index: 9999; }
+  .card { background: #fff; padding: 25px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+  .btn { padding: 12px 20px; border-radius: 8px; background: #d9534f; color: #fff; border: 0; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 15px; }
+  .btn:active { transform: scale(0.98); }
+
+  /* Modal Warning */
+  #warnModal { display: none; position: fixed; inset: 0; z-index: 9998; justify-content: center; align-items: center; background: rgba(0,0,0,0.7); }
+  #warnCard { background: #fff; padding: 20px; border-radius: 10px; text-align: center; max-width: 85%; border-top: 5px solid #ffc107; }
+  h2 { margin-top: 0; color: #333; }
+  p { line-height: 1.5; color: #555; }
+</style>
+</head>
+<body>
+
+<iframe id="examIframe" src="about:blank"></iframe>
+
+<div id="startOverlay" class="overlay">
+  <div class="card">
+    <h2>Peraturan Ujian - PAIBP11</h2>
+    <ul style="text-align:left; font-size:14px; color:#444; padding-left: 20px;">
+      <li>Dilarang keluar dari aplikasi/tab.</li>
+      <li>Dilarang mengerjakan ujian 2x apabila jawaban sudah dikirim.</li>
+      <li><strong>Dilarang Split Screen (Layar Belah).</strong></li>
+      <li>Dilarang menekan tombol Back/Home.</li>
+      <li>Pelanggaran ke-3 = <strong>AKSES DITUTUP</strong>.</li>
+    </ul>
+    <p style="font-size:13px; color:#666;">Pastikan HP dalam posisi nyaman. Klik tombol di bawah untuk masuk mode ujian.</p>
+    <button id="startBtn" class="btn">MULAI UJIAN & FULLSCREEN</button>
+  </div>
+</div>
+
+<div id="warnModal">
+  <div id="warnCard">
+    <h3 style="margin:0 0 10px 0; color:#d9534f;">⚠️ PERINGATAN!</h3>
+    <p id="warnText">Terdeteksi aktivitas mencurigakan.</p>
+    <p style="font-weight:bold; font-size:18px;">Sisa Kesempatan: <span id="chanceCount">3</span></p>
+    <button class="btn" style="background:#007bff; margin-top:10px;" onclick="closeWarn()">SAYA MENGERTI</button>
+  </div>
+</div>
+
+<script>
+/* ====== KONFIGURASI GURU ====== */
+// Ganti URL di bawah dengan Link Google Form (Mode Viewform/Embedded)
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSciKa1jxtAsQkKSRwNKGPVCZ8LkvN0AOoCYVb8oZJNni1tVlw/viewform?usp=dialog';
+
+// ID Unik Mapel (Ganti jika beda mapel agar hitungan reset)
+const SAFE_KEY = 'PAIBP11'; 
+
+const MAX_VIOLATION = 3; // Maksimal pelanggaran
+/* ============================== */
+
+const iframe = document.getElementById('examIframe');
+const startOverlay = document.getElementById('startOverlay');
+const startBtn = document.getElementById('startBtn');
+const warnModal = document.getElementById('warnModal');
+const warnText = document.getElementById('warnText');
+const chanceCount = document.getElementById('chanceCount');
+
+// State Variables
+let violationCount = parseInt(localStorage.getItem(SAFE_KEY + '_v') || '0');
+let isExamStarted = false;
+let initialWidth = 0;
+let initialHeight = 0;
+
+// Inisialisasi awal
+checkBlock();
+
+// --- FUNGSI UTAMA ---
+
+function getRemaining() {
+  return Math.max(0, MAX_VIOLATION - violationCount);
+}
+
+function saveViolation() {
+  localStorage.setItem(SAFE_KEY + '_v', violationCount);
+  checkBlock();
+}
+
+function checkBlock() {
+  if (violationCount >= MAX_VIOLATION || localStorage.getItem(SAFE_KEY + '_blocked') === '1') {
+    localStorage.setItem(SAFE_KEY + '_blocked', '1');
+    window.location.href = 'akses_ditutup.html'; // Pastikan file ini ada
+  }
+}
+
+function triggerViolation(reason) {
+  if (!isExamStarted) return; // Jangan hitung jika belum mulai
+
+  // Debounce sederhana agar tidak spam pelanggaran dalam 1 detik
+  const now = Date.now();
+  if (window.lastViolation && now - window.lastViolation < 1500) return;
+  window.lastViolation = now;
+
+  violationCount++;
+  saveViolation();
+
+  console.warn('Pelanggaran:', reason);
+
+  if (violationCount >= MAX_VIOLATION) {
+    checkBlock();
+  } else {
+    warnText.textContent = `${reason}`;
+    chanceCount.textContent = getRemaining();
+    warnModal.style.display = 'flex';
+  }
+}
+
+function closeWarn() {
+  warnModal.style.display = 'none';
+  // Paksa fullscreen lagi jika lepas
+  requestFullScreen();
+}
+
+function requestFullScreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}
+
+// --- DETEKSI CHEATING ---
+
+// 1. Deteksi Tab Switching / Minimize (Visibility Change)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && isExamStarted) {
+    triggerViolation('Anda meninggalkan layar ujian (Minimize/Tab Lain).');
+  }
+});
+
+// 2. Deteksi Kehilangan Fokus (Blur)
+window.addEventListener('blur', () => {
+  if (isExamStarted) {
+    // Delay sedikit untuk memastikan bukan klik iframe wajar
+    setTimeout(() => {
+      if (document.activeElement !== iframe) {
+         triggerViolation('Dilarang klik di luar area ujian / pindah aplikasi.');
+      }
+    }, 200);
+  }
+});
+
+// 3. DETEKSI SPLIT SCREEN (Resize)
+// Logika: Jika lebar layar berubah drastis, atau tinggi berubah (bukan keyboard)
+window.addEventListener('resize', () => {
+  if (!isExamStarted) return;
+
+  const currentWidth = window.innerWidth;
+  const currentHeight = window.innerHeight;
+
+  // Toleransi perubahan ukuran (misal scrollbar muncul)
+  const widthDiff = Math.abs(currentWidth - initialWidth);
+  const heightDiff = Math.abs(currentHeight - initialHeight);
+
+  // Cek Perubahan Lebar (Indikator kuat Split Screen di HP Portrait)
+  // Jika lebar berubah lebih dari 100px, kemungkinan split screen
+  if (widthDiff > 50) {
+    triggerViolation('Terdeteksi Split Screen (Ukuran Layar Berubah). Kembalikan ke layar penuh!');
+  }
+
+  // Cek Perubahan Tinggi (Hati-hati dengan Keyboard Virtual)
+  // Keyboard biasanya mengambil 30-40% layar bawah. Split screen biasanya 50%.
+  // Kita anggap pelanggaran jika tinggi berkurang TANPA fokus pada input
+  // (Tapi karena Google Form di iframe susah dideteksi fokus inputnya, kita pakai fullscreen API check)
+
+  // Cek Fullscreen API
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      // Jika resize terjadi DAN tidak dalam mode fullscreen API lagi
+      // Ini indikator paling valid user keluar mode penuh
+      // triggerViolation('Mode Fullscreen Terhenti. Jangan ubah ukuran layar!'); 
+      // (Opsional: diaktifkan jika ingin sangat ketat, tapi kadang keyboard membatalkan fullscreen di bbrp browser)
+  }
+});
+
+// 4. Cegah Tombol & Klik Kanan
+document.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'F12' || (e.ctrlKey && ['u','p','s'].includes(e.key))) {
+    e.preventDefault();
+    triggerViolation('Dilarang menggunakan tombol sistem.');
+  }
+});
+
+// --- START UJIAN ---
+startBtn.addEventListener('click', async () => {
+  if (violationCount >= MAX_VIOLATION) return checkBlock();
+
+  startOverlay.style.display = 'none';
+  iframe.src = FORM_URL; // Load soal
+
+  // Simpan ukuran layar awal untuk referensi Split Screen
+  initialWidth = window.innerWidth;
+  initialHeight = window.innerHeight;
+
+  // Coba masuk fullscreen
+  await requestFullScreen();
+
+  isExamStarted = true;
+});
+
+// Cek status saat load
+chanceCount.textContent = getRemaining();
+
+</script>
+</body>
+</html>
