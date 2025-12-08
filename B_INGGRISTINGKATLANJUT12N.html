@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Ujian Online - B_INGGRISTINGKATLANJUT12N (Secure Mode)</title>
+
+<style>
+  body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif; background: #000; }
+  #examIframe { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+  
+  .overlay { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.85); z-index: 9999; }
+  .card { background: #fff; padding: 25px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+  .btn { padding: 12px 20px; border-radius: 8px; background: #d9534f; color: #fff; border: 0; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 15px; }
+  .btn:active { transform: scale(0.98); }
+  
+  #warnModal { display: none; position: fixed; inset: 0; z-index: 9998; justify-content: center; align-items: center; background: rgba(0,0,0,0.7); }
+  #warnCard { background: #fff; padding: 20px; border-radius: 10px; text-align: center; max-width: 85%; border-top: 5px solid #ffc107; }
+</style>
+</head>
+
+<body>
+
+<iframe id="examIframe" src="about:blank"></iframe>
+
+<!-- START SCREEN -->
+<div id="startOverlay" class="overlay">
+  <div class="card">
+    <h2>Peraturan Ujian - B_INGGRISTINGKATLANJUT12N</h2>
+    <ul style="text-align:left; font-size:14px; color:#444; padding-left:20px;">
+      <li>Dilarang keluar dari aplikasi/tab.</li>
+      <li>Dilarang mengerjakan ujian 2x apabila jawaban sudah dikirim.</li>
+      <li><strong>Dilarang Split Screen (Layar Belah).</strong></li>
+      <li>Dilarang menekan tombol Back/Home.</li>
+      <li>Pelanggaran ke-5 = <strong>AKSES DITUTUP</strong>.</li>
+    </ul>
+    <p style="font-size:13px; color:#666;">Pastikan HP dalam posisi nyaman. Klik tombol di bawah untuk mulai ujian.</p>
+    <button id="startBtn" class="btn">MULAI UJIAN</button>
+  </div>
+</div>
+
+<!-- WARNING MODAL -->
+<div id="warnModal">
+  <div id="warnCard">
+    <h3 style="margin:0 0 10px 0; color:#d9534f;">⚠️ PERINGATAN!</h3>
+    <p id="warnText">Terdeteksi aktivitas mencurigakan.</p>
+    <p style="font-weight:bold; font-size:18px;">Sisa Kesempatan: <span id="chanceCount">5</span></p>
+    <button class="btn" style="background:#007bff; margin-top:10px;" onclick="closeWarn()">SAYA MENGERTI</button>
+  </div>
+</div>
+
+<script>
+/* ====== CONFIG ====== */
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfJYWLIUyMnXO86dsWnD7lI4-gzCl2yumE1c_0W8Ldn5o4vzg/viewform?usp=dialog';
+const SAFE_KEY = 'B_INGGRISTINGKATLANJUT12N';
+
+// MAKS PELANGGARAN = 5
+const MAX_VIOLATION = 5;
+
+const AWAY_LIMIT = 5000; // 5 detik hilang = pelanggaran
+/* ==================== */
+
+const iframe = document.getElementById('examIframe');
+const startOverlay = document.getElementById('startOverlay');
+const startBtn = document.getElementById('startBtn');
+const warnModal = document.getElementById('warnModal');
+const warnText = document.getElementById('warnText');
+const chanceCount = document.getElementById('chanceCount');
+
+let violationCount = parseInt(localStorage.getItem(SAFE_KEY + '_v') || '0');
+let isExamStarted = false;
+
+let initialWidth = 0;
+let initialHeight = 0;
+let leaveTime = null;
+
+checkBlock();
+
+/* UTILITY */
+function getRemaining() {
+  return Math.max(0, MAX_VIOLATION - violationCount);
+}
+
+function saveViolation() {
+  localStorage.setItem(SAFE_KEY + '_v', violationCount);
+  checkBlock();
+}
+
+function checkBlock() {
+  if (violationCount >= MAX_VIOLATION || localStorage.getItem(SAFE_KEY + '_blocked') === '1') {
+    localStorage.setItem(SAFE_KEY + '_blocked', '1');
+    window.location.href = 'akses_ditutup.html';
+  }
+}
+
+function triggerViolation(reason) {
+  if (!isExamStarted) return;
+
+  const now = Date.now();
+  if (window.lastViolation && now - window.lastViolation < 1500) return;
+  window.lastViolation = now;
+
+  violationCount++;
+  saveViolation();
+
+  if (violationCount >= MAX_VIOLATION) {
+    checkBlock();
+  } else {
+    warnText.textContent = reason;
+    chanceCount.textContent = getRemaining();
+    warnModal.style.display = 'flex';
+  }
+}
+
+function closeWarn() {
+  warnModal.style.display = 'none';
+}
+
+/* ===== DETEKSI CHEATING ===== */
+
+/* 1. Deteksi hilang > 5 detik */
+document.addEventListener('visibilitychange', () => {
+  if (!isExamStarted) return;
+
+  if (document.hidden) {
+    leaveTime = Date.now();
+  } else if (leaveTime) {
+    const diff = Date.now() - leaveTime;
+
+    if (diff > AWAY_LIMIT) {
+      triggerViolation(`Anda meninggalkan layar selama ${Math.round(diff / 1000)} detik.`);
+    }
+    leaveTime = null;
+  }
+});
+
+/* 2. Deteksi klik di luar iframe */
+window.addEventListener('blur', () => {
+  if (isExamStarted) {
+    setTimeout(() => {
+      if (document.activeElement !== iframe) {
+        triggerViolation('Dilarang klik di luar area ujian / pindah aplikasi.');
+      }
+    }, 200);
+  }
+});
+
+/* 3. Deteksi Split Screen */
+window.addEventListener('resize', () => {
+  if (!isExamStarted) return;
+
+  const widthDiff = Math.abs(window.innerWidth - initialWidth);
+  if (widthDiff > 50) {
+    triggerViolation('Terdeteksi Split Screen. Harap kembali ke layar penuh.');
+  }
+});
+
+/* 4. Cegah tombol sistem */
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+  if (e.key === 'F12' || (e.ctrlKey && ['u','p','s'].includes(e.key))) {
+    e.preventDefault();
+    triggerViolation('Dilarang menggunakan tombol sistem.');
+  }
+});
+
+/* START UJIAN */
+startBtn.addEventListener('click', () => {
+  if (violationCount >= MAX_VIOLATION) return checkBlock();
+
+  startOverlay.style.display = 'none';
+  iframe.src = FORM_URL;
+
+  initialWidth = window.innerWidth;
+  initialHeight = window.innerHeight;
+
+  isExamStarted = true;
+});
+
+chanceCount.textContent = getRemaining();
+</script>
+</body>
+</html>
